@@ -2,7 +2,7 @@ use std::iter::once;
 
 use ocpalm::Octree;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, ComputePassDescriptor, ComputePipeline, BindingResource, TextureFormat, TextureDescriptor, Extent3d, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, SamplerDescriptor, AddressMode, FilterMode, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, TextureViewDimension, StorageTextureAccess, PipelineLayoutDescriptor};
-use winit::{dpi::PhysicalSize, event::WindowEvent, window::Window};
+use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode}, window::Window};
 
 use crate::{vertex::Vertex, shapes, voxel::Voxel};
 
@@ -289,7 +289,19 @@ impl State {
         }
     }
 
-    pub fn input(&mut self, _event: &WindowEvent) -> bool {
+    pub fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput { input, ..  } => {
+                match input.virtual_keycode.unwrap() {
+                    VirtualKeyCode::E => {
+                        self.octree.set(0, 0, 0, Voxel::with_id(1));
+                        println!("Set voxel");
+                    },
+                    _ => {},
+                }
+            },
+            _ => {},
+        }
         false
     }
 
@@ -300,50 +312,41 @@ impl State {
         let output = self.surface.get_current_texture()?;
         let output_view = output.texture.create_view(&TextureViewDescriptor::default());
 
+        let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+
         // Rendering voxels inside of the compute shader
         {
-            let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor { label: Some("Compute Render Pass") });
 
-            {
-                let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor { label: Some("Compute Render Pass") });
-
-                compute_pass.set_pipeline(&self.compute_pipeline);
-                compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
-                compute_pass.dispatch_workgroups(self.size.width, self.size.height, 1);
-            }
-
-            self.queue.submit(once(encoder.finish()));
+            compute_pass.set_pipeline(&self.compute_pipeline);
+            compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+            compute_pass.dispatch_workgroups(self.size.width, self.size.height, 1);
         }
 
         {
-            let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Render pass"),
+                color_attachments: &[
+                    Some(RenderPassColorAttachment {
+                        view: &output_view,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: wgpu::LoadOp::Clear(Color::BLACK),
+                            store: true,
+                        },
+                    })
+                ],
+                depth_stencil_attachment: None,
+            });
 
-            {
-                let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                    label: Some("Render pass"),
-                    color_attachments: &[
-                        Some(RenderPassColorAttachment {
-                            view: &output_view,
-                            resolve_target: None,
-                            ops: Operations {
-                                load: wgpu::LoadOp::Clear(Color::BLACK),
-                                store: true,
-                            },
-                        })
-                    ],
-                    depth_stencil_attachment: None,
-                });
-
-                render_pass.set_pipeline(&self.render_pipeline);
-                render_pass.set_bind_group(0, &self.render_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-                render_pass.draw_indexed(0..shapes::QUAD_INDICES.len() as u32, 0, 0..1);
-            }
-
-            self.queue.submit(once(encoder.finish()));
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.render_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..shapes::QUAD_INDICES.len() as u32, 0, 0..1);
         }
 
+        self.queue.submit(once(encoder.finish()));
         output.present();
 
         Ok(())
