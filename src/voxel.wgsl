@@ -68,9 +68,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         tymax = (b1.y - ray_origin.y) / ray_direction.y; 
     
         if (txmin > tymax || tymin > txmax) {
-            if (i > 0) {
-                color = vec4<f32>(1., 0., 0., 1.);
-            }
+            // if (i > 0) {
+            //     color = vec4<f32>(1., 0., 0., 1.);
+            // }
             break;
         }
     

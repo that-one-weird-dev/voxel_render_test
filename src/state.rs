@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use ocpalm::Octree;
-use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, ComputePassDescriptor, ComputePipeline, BindingResource, TextureFormat, TextureDescriptor, Extent3d, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, SamplerDescriptor, AddressMode, FilterMode, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, TextureViewDimension, StorageTextureAccess, PipelineLayoutDescriptor};
+use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureFormat, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType};
 use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode}, window::Window};
 
 use crate::{vertex::Vertex, shapes, voxel::Voxel};
@@ -12,11 +12,9 @@ pub struct State {
     queue: Queue,
     config: SurfaceConfiguration,
     pub size: PhysicalSize<u32>,
-    compute_pipeline: ComputePipeline,
     render_pipeline: RenderPipeline,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
-    compute_bind_group: BindGroup,
     render_bind_group: BindGroup,
     octree: Octree<Voxel>,
 }
@@ -68,49 +66,18 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        // --------------------------------- Compute pipeline -----------------------------------------
-        let texture_size = Extent3d {
-            width: size.width,
-            height: size.height,
-            depth_or_array_layers: 1,
-        };
-
-        let voxel_texture = device.create_texture(&TextureDescriptor {
-            label: Some("Buffer texture"),
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: TextureFormat::Rgba8Unorm,
-            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
-        });
-        let voxel_texture_view = voxel_texture.create_view(&TextureViewDescriptor {
-            label: Some("Surface texture view"),
-            ..Default::default()
-        });
-
-        let voxel_sampler = device.create_sampler(&SamplerDescriptor {
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Nearest,
-            ..Default::default()
-        });
-
+        // ------------------------------------ Render pipeline ----------------------------------------
         let octree_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Octree buffer"),
             contents: octree.as_byte_slice(),
             usage: BufferUsages::STORAGE,
         });
 
-        let compute_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Compute bind group layout"),
+        let render_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[
                 BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: ShaderStages::COMPUTE,
+                    visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage {
                             read_only: true,
@@ -118,76 +85,6 @@ impl State {
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::WriteOnly,
-                        format: TextureFormat::Rgba8Unorm,
-                        view_dimension: TextureViewDimension::D2,
-                    },
-                    count: None,
-                },
-            ],
-        });
-
-        let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute bind Group"),
-            layout: &compute_bind_group_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::Buffer(BufferBinding {
-                        buffer: &octree_buffer,
-                        offset: 0,
-                        size: None,
-                    }),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(&voxel_texture_view),
-                },
-            ],
-        });
-
-        let compute_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Compute pipeline descriptor"),
-            bind_group_layouts: &[
-                &compute_bind_group_layout,
-            ],
-            push_constant_ranges: &[],
-        });
-
-        let cs_module = device.create_shader_module(include_wgsl!("voxel.wgsl"));
-
-        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: None,
-            layout: Some(&compute_pipeline_layout),
-            module: &cs_module,
-            entry_point: "main",
-        });
-
-        // ------------------------------------ Render pipeline ----------------------------------------
-        let render_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    // This should match the filterable field of the
-                    // corresponding Texture entry above.
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
             ],
@@ -200,12 +97,12 @@ impl State {
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::TextureView(&voxel_texture_view),
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &octree_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
                 },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::Sampler(&voxel_sampler),
-                }
             ],
         });
 
@@ -270,11 +167,9 @@ impl State {
             queue,
             config,
             size,
-            compute_pipeline,
             render_pipeline,
             vertex_buffer,
             index_buffer,
-            compute_bind_group,
             render_bind_group,
             octree,
         }
@@ -313,15 +208,6 @@ impl State {
         let output_view = output.texture.create_view(&TextureViewDescriptor::default());
 
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
-
-        // Rendering voxels inside of the compute shader
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor { label: Some("Compute Render Pass") });
-
-            compute_pass.set_pipeline(&self.compute_pipeline);
-            compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
-            compute_pass.dispatch_workgroups(self.size.width, self.size.height, 1);
-        }
 
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
