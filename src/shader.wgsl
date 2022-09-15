@@ -37,99 +37,71 @@ fn is_null(val: u32) -> bool {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var ray_origin = vec3<f32>(in.tex_coords * 100., -20.);
-    let ray_direction = normalize(vec3<f32>(0.01, 0.01, 1.));
+    let ray_origin = vec3<f32>(in.tex_coords * 2., -20.);
+    let ray_direction = vec3<f32>(0.001, 0.001, 100.);
+    let inverse_ray_dir = 1. / ray_direction;
 
     var current_node = octree[0];
     var half_size = f32(1 << (8u - 2u));
 
-    var b0: vec3<f32>;
-    var b1: vec3<f32>; 
+    var b0 = vec3<f32>(
+        -half_size,
+        -half_size,
+        -half_size,
+    );
+    var b1 = vec3<f32>(
+        half_size,
+        half_size,
+        half_size,
+    ); 
 
     var t0: vec3<f32>;
     var t1: vec3<f32>;
 
-    var txmin: f32;
-    var txmax: f32;
-    var tymin: f32;
-    var tymax: f32;
-    var tzmin: f32;
-    var tzmax: f32;
+    var tmin: f32;
+    var tmax: f32;
 
     var index: u32;
 
     var voxel_hit: u32;
 
-    var color: vec4<f32> = vec4<f32>(.2, .2, .2, 1.);
-
     for (var i = 0; i < max_steps; i++) {
-        // Box bounds
-        b0 = vec3<f32>(
-            -half_size,
-            -half_size,
-            -half_size,
-        );
-        b1 = vec3<f32>(
-            half_size,
-            half_size,
-            half_size,
-        );
-    
-        txmin = (b0.x - ray_origin.x) / ray_direction.x; 
-        txmax = (b1.x - ray_origin.x) / ray_direction.x; 
-        tymin = (b0.y - ray_origin.y) / ray_direction.y; 
-        tymax = (b1.y - ray_origin.y) / ray_direction.y; 
-    
-        if (txmin > tymax || tymin > txmax) {
-            if (i > 0) {
-                color = vec4<f32>(1., 0., 0., 1.);
-            }
-            break;
-        }
-    
-        if (tymin > txmin) {
-            txmin = tymin; 
-        }
-        if (tymax < txmax) {
-            txmax = tymax; 
-        }
-    
-        tzmin = (b0.z - ray_origin.z) / ray_direction.z;
-        tzmax = (b1.z - ray_origin.z) / ray_direction.z;
-    
-        if (txmin > tzmax || tzmin > txmax) {
-            break;
-        }
-    
-        if (tzmin > txmin) {
-            txmin = tzmin; 
-        }
-        if (tzmax < txmax) {
-            txmax = tzmax; 
-        }
-
-    
         if (is_null(current_node.children[0])) {
-            voxel_hit = current_node.data;
+            return vec4<f32>(0., 1., 0., 1.);
+            //voxel_hit = current_node.data;
+            //break;
+        }
+
+        // Collision checking
+        t0 = (b0 - ray_origin) * inverse_ray_dir;
+        t1 = (b1 - ray_origin) * inverse_ray_dir;
+
+        tmin = max(max(min(t0.x, t1.x), min(t0.y, t1.y)), min(t0.z, t1.z));
+        tmax = min(min(max(t0.x, t1.x), max(t0.y, t1.y)), max(t0.z, t1.z));
+
+        if (tmax < 0.) {
+            // The box is in the other direction
             break;
         }
 
+        if (tmin > tmax) {
+            // Ray isn't intersecting the box
+            return vec4<f32>(0., 0., 1., 1.);
+            // break;
+        }
+
+        // Voxel check
         index = 0u;
 
-        if (ray_origin.x + txmin >= 0.) {
+        if (t0.x >= 0.) {
             index |= 4u;
-            txmin -= half_size;
         }
-        if (ray_origin.y + tymin >= 0.) {
+        if (t0.y >= 0.) {
             index |= 2u;
-            tymin -= half_size;
         }
-        if (ray_origin.z + tzmin >= 0.) {
+        if (t0.z >= 0.) {
             index |= 1u;
-            tzmin -= half_size;
         }
-
-        ray_origin = vec3<f32>(txmin, tymin, tzmin);
 
         current_node = octree[current_node.children[index]];
 
@@ -152,11 +124,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
+    var color: vec4<f32>;
+
     switch voxel_hit {
         case 1u: {
             color = vec4<f32>(0., 1., 0., 1.);
         }
-        default {}
+        default {
+            color = vec4<f32>(.2, .2, .2, 1.);
+        }
     }
 
     return color;
