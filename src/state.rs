@@ -1,10 +1,10 @@
-use std::iter::once;
+use std::{iter::once, mem::size_of};
 use rand::prelude::*;
 use ocpalm::Octree;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureFormat, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType};
 use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode}, window::Window};
 
-use crate::{vertex::Vertex, shapes, voxel::Voxel};
+use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}};
 
 pub struct State {
     surface: Surface,
@@ -18,6 +18,8 @@ pub struct State {
     render_bind_group: BindGroup,
     octree: Octree<Voxel>,
     octree_buffer: Buffer,
+    camera_buffer: Buffer,
+    camera: Camera,
 }
 
 impl State {
@@ -68,10 +70,21 @@ impl State {
         surface.configure(&device, &config);
 
         // ------------------------------------ Render pipeline ----------------------------------------
+        let camera = Camera {
+            position: Vec3::new(0., 0., 0.),
+            rotation: Vec2::new(0., 0.),
+        };
+
         let octree_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Octree buffer"),
             contents: octree.as_byte_slice(),
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        });
+
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Camera buffer"),
+            contents: bytemuck::bytes_of(&camera),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
         let render_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -83,6 +96,16 @@ impl State {
                         ty: BufferBindingType::Storage {
                             read_only: true,
                         },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -100,6 +123,14 @@ impl State {
                     binding: 0,
                     resource: BindingResource::Buffer(BufferBinding {
                         buffer: &octree_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &camera_buffer,
                         offset: 0,
                         size: None,
                     }),
@@ -174,6 +205,8 @@ impl State {
             render_bind_group,
             octree,
             octree_buffer,
+            camera_buffer,
+            camera,
         }
     }
 
@@ -197,7 +230,30 @@ impl State {
                         let y = rng.gen_range(-64..64);
 
                         self.octree.set(x, y, 0, Voxel::with_id(1));
-                        println!("Set voxel");
+                    },
+                    Some(VirtualKeyCode::D) => {
+                        self.camera.position.x += 1.;
+                    },
+                    Some(VirtualKeyCode::A) => {
+                        self.camera.position.x -= 1.;
+                    },
+                    Some(VirtualKeyCode::W) => {
+                        self.camera.position.z += 1.;
+                    },
+                    Some(VirtualKeyCode::S) => {
+                        self.camera.position.z -= 1.;
+                    },
+                    Some(VirtualKeyCode::Space) => {
+                        self.camera.position.y += 1.;
+                    },
+                    Some(VirtualKeyCode::LShift) => {
+                        self.camera.position.y -= 1.;
+                    },
+                    Some(VirtualKeyCode::Left) => {
+                        self.camera.rotation.y += 1.;
+                    },
+                    Some(VirtualKeyCode::Right) => {
+                        self.camera.rotation.y -= 1.;
                     },
                     _ => {},
                 }
@@ -218,18 +274,22 @@ impl State {
 
         let octree_bytes = self.octree.as_byte_slice();
 
-        let staging_voxel_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Staging voxel buffer"),
-            contents: octree_bytes,
-            usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        // Updating voxel buffer
+        self.queue.write_buffer(&self.octree_buffer, 0, octree_bytes);
+
+        // Updating camera position
+        let staging_camera_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Camera buffer"),
+            contents: bytemuck::bytes_of(&self.camera),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_SRC,
         });
-        
+
         encoder.copy_buffer_to_buffer(
-            &staging_voxel_buffer,
+            &staging_camera_buffer,
             0,
-            &self.octree_buffer,
+            &self.camera_buffer,
             0,
-            octree_bytes.len() as u64,
+            size_of::<Camera>() as u64,
         );
 
         {

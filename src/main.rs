@@ -2,6 +2,7 @@ mod state;
 mod vertex;
 mod shapes;
 mod voxel;
+mod types;
 
 use state::State;
 use wgpu::SurfaceError;

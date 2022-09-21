@@ -19,6 +19,11 @@ struct AABB {
     max: vec3<f32>,
 }
 
+struct Camera {
+    position: vec3<f32>,
+    rotation: vec2<f32>,
+}
+
 @vertex
 fn vs_main(
     model: VertexInput,
@@ -31,7 +36,11 @@ fn vs_main(
 
 @group(0)
 @binding(0)
-var<storage, read> octree: array<OctreeNode>;
+var<storage, read> octree: array<OctreeNode, 26208>;
+
+@group(0)
+@binding(1)
+var<uniform> camera: Camera;
 
 let max_steps = 100;
 let cube_color = vec4<f32>(0., 1., 0., 1.);
@@ -164,31 +173,6 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
             break;
         }
         
-        // Check for next voxel
-        // if (cast_ray) {
-        //     // Finding the first parent that contains this point
-        //     loop {
-        //         if (stack_index == 0u) {
-        //             break;
-        //         }
-
-        //         stack_index -= 1u;
-        //         current_aabb = aabb_stack[stack_index];
-        //         current_node = octree[current_node.parent];
-        //         half_size *= 2.;
-
-        //         if (t1.x > current_aabb.min.x
-        //             && t1.y > current_aabb.min.y
-        //             && t1.z > current_aabb.min.z
-        //             && t1.x < current_aabb.max.x
-        //             && t1.y < current_aabb.max.y
-        //             && t1.z < current_aabb.max.z
-        //         ) {
-        //             break;
-        //         }
-        //     }
-        // }
-
         if (reset) {
             t0 = t1;
 
@@ -208,8 +192,13 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let ray_origin = vec3<f32>(in.tex_coords * 160., -20.);
-    let ray_direction = vec3<f32>(0., 0., 100.);
+    let ray_origin = camera.position + vec3<f32>(in.tex_coords * 160., 1.);
+    let center_distance = (in.tex_coords - .5) * 20.;
+    let ray_direction = vec3<f32>(
+        100. * sin(radians(camera.rotation.y)) + center_distance.x,
+        center_distance.y,
+        100. * cos(radians(camera.rotation.y)),
+    );
 
     let voxel_hit = cast_ray(ray_origin, ray_direction);
 
