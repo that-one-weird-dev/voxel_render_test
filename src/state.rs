@@ -1,5 +1,5 @@
 use std::iter::once;
-
+use rand::prelude::*;
 use ocpalm::Octree;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureFormat, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType};
 use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode}, window::Window};
@@ -17,6 +17,7 @@ pub struct State {
     index_buffer: Buffer,
     render_bind_group: BindGroup,
     octree: Octree<Voxel>,
+    octree_buffer: Buffer,
 }
 
 impl State {
@@ -26,7 +27,7 @@ impl State {
         // ---------------- Octree -------------
         let mut octree = Octree::new(8);
 
-        octree.set(0, 0, 0, Voxel::with_id(2));
+        octree.set(0, 1, 0, Voxel::with_id(2));
         octree.set(1, 0, 0, Voxel::with_id(2));
         octree.set(1, 1, 0, Voxel::with_id(2));
 
@@ -70,7 +71,7 @@ impl State {
         let octree_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Octree buffer"),
             contents: octree.as_byte_slice(),
-            usage: BufferUsages::STORAGE,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 
         let render_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -172,6 +173,7 @@ impl State {
             index_buffer,
             render_bind_group,
             octree,
+            octree_buffer,
         }
     }
 
@@ -189,7 +191,12 @@ impl State {
             WindowEvent::KeyboardInput { input, ..  } => {
                 match input.virtual_keycode {
                     Some(VirtualKeyCode::E) => {
-                        self.octree.set(0, 0, 0, Voxel::with_id(1));
+                        let mut rng = rand::thread_rng();
+
+                        let x = rng.gen_range(-64..64);
+                        let y = rng.gen_range(-64..64);
+
+                        self.octree.set(x, y, 0, Voxel::with_id(1));
                         println!("Set voxel");
                     },
                     _ => {},
@@ -208,6 +215,22 @@ impl State {
         let output_view = output.texture.create_view(&TextureViewDescriptor::default());
 
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+
+        let octree_bytes = self.octree.as_byte_slice();
+
+        let staging_voxel_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Staging voxel buffer"),
+            contents: octree_bytes,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        });
+        
+        encoder.copy_buffer_to_buffer(
+            &staging_voxel_buffer,
+            0,
+            &self.octree_buffer,
+            0,
+            octree_bytes.len() as u64,
+        );
 
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
