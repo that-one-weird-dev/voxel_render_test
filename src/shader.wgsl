@@ -45,7 +45,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
     let inv_dir = 1. / dir;
 
     var current_node = octree[0];
-    var half_size = f32(1 << (8u - 1u)) * .5;
+    var half_size = f32(1u << (8u - 1u)) * .5;
 
     var aabb_stack: array<AABB, 8>;
     var stack_index: u32;
@@ -62,81 +62,100 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         half_size * 2.,
     ); 
 
-    aabb_stack[0] = current_aabb;
+    aabb_stack[stack_index] = current_aabb;
+
+    var tmin: vec3<f32>;
+    var tmax: vec3<f32>;
 
     var t0: vec3<f32>;
     var t1: vec3<f32>;
 
-    var tmin: f32;
-    var tmax: f32;
+    var tnear: f32;
+    var tfar: f32;
 
     var index: u32;
 
     var voxel_hit: u32;
 
     var cast_ray = true;
+    var find_node = true;
+    var reset = false;
 
     // Checks if the root is also a leaf node
     if (is_null(current_node.children[0])) {
         return current_node.data;
     }
 
-    for (var i = 0; i < max_steps; i++) {
+    var i: i32;
+
+    for (i = 0; i < max_steps; i++) {
         if (cast_ray) {
             // -------------- Collision checking ---------------------
-            t0 = (current_aabb.min - origin) * inv_dir;
-            t1 = (current_aabb.max - origin) * inv_dir;
+            tmin = (current_aabb.min - origin) * inv_dir;
+            tmax = (current_aabb.max - origin) * inv_dir;
 
-            tmin = max(max(min(t0.x, t1.x), min(t0.y, t1.y)), min(t0.z, t1.z));
-            tmax = min(min(max(t0.x, t1.x), max(t0.y, t1.y)), max(t0.z, t1.z));
+            t0 = min(tmin, tmax);
+            t1 = max(tmin, tmax);
 
-            if (tmax < 0.) {
+            tnear = max(max(t0.x, t0.y), t0.z);
+            tfar = min(min(t1.x, t1.y), t1.z);
+
+            if (tfar < 0.) {
                 // The box is in the other direction
                 return 0u;
             }
 
-            if (tmin > tmax) {
+            if (tnear > tfar) {
                 // Ray isn't intersecting the box
                 return 0u;
             }
 
-            t0 = origin + dir * ((tmin / length(dir)) + 0.001);
-            t1 = origin + dir * ((tmax / length(dir)) + 0.001);
+            t0 = origin + dir * (tnear + 0.001);
+            t1 = origin + dir * (tfar + 0.001);
+
+            if (i % 3 == 1) {
+                reset = true;
+                find_node = false;
+            }
         }
 
-        // Find smallest voxel in that point
-        for (var j=0; j < 100; j++) {
-            // Subdivision index calculcation
-            index = 0u;
-            if (t0.x >= current_aabb.min.x + half_size) {
-                index |= 4u;
-                current_aabb.min.x += half_size;
-            } else {
-                current_aabb.max.x -= half_size;
-            }
-            if (t0.y >= current_aabb.min.y + half_size) {
-                index |= 2u;
-                current_aabb.min.y += half_size;
-            } else {
-                current_aabb.max.y -= half_size;
-            }
-            if (t0.z >= current_aabb.min.z + half_size) {
-                index |= 1u;
-                current_aabb.min.z += half_size;
-            } else {
-                current_aabb.max.z -= half_size;
-            }
+        if (find_node) {
+            // Find smallest voxel in that point
+            loop {
+                // Subdivision index calculcation
+                index = 0u;
+                if (t0.x >= current_aabb.min.x + half_size) {
+                    index |= 4u;
+                    current_aabb.min.x += half_size;
+                } else {
+                    current_aabb.max.x -= half_size;
+                }
+                if (t0.y >= current_aabb.min.y + half_size) {
+                    index |= 2u;
+                    current_aabb.min.y += half_size;
+                } else {
+                    current_aabb.max.y -= half_size;
+                }
+                if (t0.z >= current_aabb.min.z + half_size) {
+                    index |= 1u;
+                    current_aabb.min.z += half_size;
+                } else {
+                    current_aabb.max.z -= half_size;
+                }
 
-            let child = current_node.children[index];
-            current_node = octree[child];
+                let child = current_node.children[index];
+                current_node = octree[child];
 
-            half_size *= .5;
-            stack_index += 1u;
-            aabb_stack[stack_index] = current_aabb;
-            
-            if (is_null(current_node.children[0])) {
-                voxel_hit = current_node.data;
-                break;
+                half_size *= .5;
+                stack_index += 1u;
+                aabb_stack[stack_index] = current_aabb;
+                
+                if (is_null(current_node.children[0])) {
+                    voxel_hit = current_node.data;
+                    reset = false;
+                    cast_ray = true;
+                    break;
+                }
             }
         }
 
@@ -146,39 +165,51 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         }
         
         // Check for next voxel
-        if (cast_ray) {
-            // Finding the first parent that contains this point
-            loop {
-                if (stack_index == 0u) {
-                    break;
-                }
+        // if (cast_ray) {
+        //     // Finding the first parent that contains this point
+        //     loop {
+        //         if (stack_index == 0u) {
+        //             break;
+        //         }
 
-                stack_index -= 1u;
-                current_aabb = aabb_stack[stack_index];
-                current_node = octree[current_node.parent];
-                half_size *= 2.;
+        //         stack_index -= 1u;
+        //         current_aabb = aabb_stack[stack_index];
+        //         current_node = octree[current_node.parent];
+        //         half_size *= 2.;
 
-                if (t1.x > current_aabb.min.x
-                    && t1.y > current_aabb.min.y
-                    && t1.z > current_aabb.min.z
-                    && t1.x < current_aabb.max.x
-                    && t1.y < current_aabb.max.y
-                    && t1.z < current_aabb.max.z
-                ) {
-                    break;
-                }
-            }
+        //         if (t1.x > current_aabb.min.x
+        //             && t1.y > current_aabb.min.y
+        //             && t1.z > current_aabb.min.z
+        //             && t1.x < current_aabb.max.x
+        //             && t1.y < current_aabb.max.y
+        //             && t1.z < current_aabb.max.z
+        //         ) {
+        //             break;
+        //         }
+        //     }
+        // }
+
+        if (reset) {
+            t0 = t1;
+
+            stack_index = 0u;
+            current_aabb = aabb_stack[stack_index];
+            current_node = octree[0];
+            half_size = f32(1u << (8u - 1u)) * .5;
+            
+            cast_ray = false;
+            find_node = true;
+            reset = false;
         }
-        cast_ray = !cast_ray;
     }
 
-    return 0u;
+    return voxel_hit;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ray_origin = vec3<f32>(in.tex_coords * 160., -20.);
-    let ray_direction = vec3<f32>(0.001, 0.001, 100.);
+    let ray_direction = vec3<f32>(0., 0., 100.);
 
     let voxel_hit = cast_ray(ray_origin, ray_direction);
 
@@ -193,6 +224,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         case 3u: {
             color = vec4<f32>(0., 0., 1., 1.);
+        }
+        case 4u: {
+            color = vec4<f32>(1., 1., 0., 1.);
+        }
+        case 5u: {
+            color = vec4<f32>(1., 0., 1., 1.);
+        }
+        case 6u: {
+            color = vec4<f32>(0., 1., 1., 1.);
+        }
+        case 7u: {
+            color = vec4<f32>(1., 1., 1., 1.);
+        }
+        case 8u: {
+            color = vec4<f32>(0., 0., 0., 1.);
         }
         default: {
             color = vec4<f32>(.2, .2, .2, 1.);

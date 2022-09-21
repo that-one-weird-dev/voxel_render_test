@@ -26,10 +26,9 @@ impl State {
         // ---------------- Octree -------------
         let mut octree = Octree::new(8);
 
-        octree.set(0, 0, 0, Voxel::with_id(1));
-        octree.set(0, 1, 0, Voxel::with_id(1));
-        octree.set(1, 0, 0, Voxel::with_id(1));
-        octree.set(30, 30, 30, Voxel::with_id(2));
+        octree.set(0, 0, 0, Voxel::with_id(2));
+        octree.set(1, 0, 0, Voxel::with_id(2));
+        octree.set(1, 1, 0, Voxel::with_id(2));
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
