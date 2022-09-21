@@ -29,9 +29,9 @@ impl State {
         // ---------------- Octree -------------
         let mut octree = Octree::new(8);
 
-        octree.set(0, 1, 0, Voxel::with_id(2));
-        octree.set(1, 0, 0, Voxel::with_id(2));
-        octree.set(1, 1, 0, Voxel::with_id(2));
+        octree.set(0, 1, 0, Voxel::new(0, 0, 30));
+        octree.set(1, 0, 0, Voxel::new(255, 0, 0));
+        octree.set(1, 1, 0, Voxel::new(0, 255, 0));
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -229,7 +229,7 @@ impl State {
                         let x = rng.gen_range(-64..64);
                         let y = rng.gen_range(-64..64);
 
-                        self.octree.set(x, y, 0, Voxel::with_id(1));
+                        self.octree.set(x, y, 0, Voxel::new(255, 0, 255));
                     },
                     Some(VirtualKeyCode::D) => {
                         self.camera.position.x += 1.;

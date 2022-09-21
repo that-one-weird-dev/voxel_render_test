@@ -11,7 +11,7 @@ struct VertexOutput {
 struct OctreeNode {
     children: array<u32, 8>,
     parent: u32,
-    data: u32,
+    color: u32,
 }
 
 struct AABB {
@@ -92,7 +92,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
     // Checks if the root is also a leaf node
     if (is_null(current_node.children[0])) {
-        return current_node.data;
+        return current_node.color;
     }
 
     var i: i32;
@@ -160,7 +160,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
                 aabb_stack[stack_index] = current_aabb;
                 
                 if (is_null(current_node.children[0])) {
-                    voxel_hit = current_node.data;
+                    voxel_hit = current_node.color;
                     reset = false;
                     cast_ray = true;
                     break;
@@ -202,37 +202,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let voxel_hit = cast_ray(ray_origin, ray_direction);
 
-    var color: vec4<f32>;
-
-    switch voxel_hit {
-        case 1u: {
-            color = vec4<f32>(1., 0., 0., 1.);
-        }
-        case 2u: {
-            color = vec4<f32>(0., 1., 0., 1.);
-        }
-        case 3u: {
-            color = vec4<f32>(0., 0., 1., 1.);
-        }
-        case 4u: {
-            color = vec4<f32>(1., 1., 0., 1.);
-        }
-        case 5u: {
-            color = vec4<f32>(1., 0., 1., 1.);
-        }
-        case 6u: {
-            color = vec4<f32>(0., 1., 1., 1.);
-        }
-        case 7u: {
-            color = vec4<f32>(1., 1., 1., 1.);
-        }
-        case 8u: {
-            color = vec4<f32>(0., 0., 0., 1.);
-        }
-        default: {
-            color = vec4<f32>(.2, .2, .2, 1.);
-        }
+    // If transparent return
+    if ((voxel_hit & 255u) != 255u) {
+        return vec4<f32>(.2, .2, .2, 1.);
     }
 
-    return color;
+    // Otherwise convert the color
+
+    return vec4<f32>(
+        f32(voxel_hit >> 24u) / 255.,
+        f32((voxel_hit >> 16u) & 255u) / 255.,
+        f32((voxel_hit >> 8u) & 255u) / 255.,
+        1.,
+    );
 }
