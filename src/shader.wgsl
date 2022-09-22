@@ -195,9 +195,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ray_origin = camera.position + vec3<f32>(in.tex_coords * 160., 1.);
     let center_distance = (in.tex_coords - .5) * 20.;
     let ray_direction = vec3<f32>(
-        100. * sin(radians(camera.rotation.y)) + center_distance.x,
+        100. * sin(camera.rotation.y) + center_distance.x,
         center_distance.y,
-        100. * cos(radians(camera.rotation.y)),
+        100. * cos(camera.rotation.y),
     );
 
     let voxel_hit = cast_ray(ray_origin, ray_direction);

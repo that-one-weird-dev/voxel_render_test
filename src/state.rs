@@ -48,7 +48,7 @@ impl State {
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::Backends::GL); // TODO: This should be all()
+        let instance = wgpu::Instance::new(wgpu::Backends::all()); // TODO: This should be all()
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance.request_adapter(
             &wgpu::RequestAdapterOptions {
@@ -247,16 +247,20 @@ impl State {
                         self.octree.set(x, y, 0, Voxel::new(255, 0, 255));
                     },
                     Some(VirtualKeyCode::D) => {
-                        self.camera.position.x += SPEED;
+                        self.camera.position.x += SPEED * self.camera.position.y.cos();
+                        self.camera.position.z += SPEED * self.camera.position.y.sin();
                     },
                     Some(VirtualKeyCode::A) => {
-                        self.camera.position.x -= SPEED;
+                        self.camera.position.x -= SPEED * self.camera.position.y.cos();
+                        self.camera.position.z -= SPEED * self.camera.position.y.sin();
                     },
                     Some(VirtualKeyCode::W) => {
-                        self.camera.position.z += SPEED;
+                        self.camera.position.x += SPEED * self.camera.rotation.y.sin();
+                        self.camera.position.z += SPEED * self.camera.rotation.y.cos();
                     },
                     Some(VirtualKeyCode::S) => {
-                        self.camera.position.z -= SPEED;
+                        self.camera.position.x -= SPEED * self.camera.rotation.y.sin();
+                        self.camera.position.z -= SPEED * self.camera.rotation.y.cos();
                     },
                     Some(VirtualKeyCode::Space) => {
                         self.camera.position.y += 1.;
@@ -265,10 +269,10 @@ impl State {
                         self.camera.position.y -= 1.;
                     },
                     Some(VirtualKeyCode::Left) => {
-                        self.camera.rotation.y += 1.;
+                        self.camera.rotation.y -= 0.01;
                     },
                     Some(VirtualKeyCode::Right) => {
-                        self.camera.rotation.y -= 1.;
+                        self.camera.rotation.y += 0.01;
                     },
                     _ => {},
                 }
