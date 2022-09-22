@@ -1,7 +1,7 @@
 use std::{iter::once, mem::size_of};
 use rand::prelude::*;
 use ocpalm::Octree;
-use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureFormat, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType};
+use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType};
 use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode}, window::Window};
 
 use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}};
@@ -35,7 +35,7 @@ impl State {
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let instance = wgpu::Instance::new(wgpu::Backends::GL); // TODO: This should be all()
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance.request_adapter(
             &wgpu::RequestAdapterOptions {
@@ -61,8 +61,8 @@ impl State {
         ).await.unwrap();
 
         let config = wgpu::SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_DST,
-            format: TextureFormat::Bgra8Unorm,
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            format: surface.get_supported_formats(&adapter)[0],
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
@@ -220,6 +220,8 @@ impl State {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
+        const SPEED: f32 = 10.;
+
         match event {
             WindowEvent::KeyboardInput { input, ..  } => {
                 match input.virtual_keycode {
@@ -232,16 +234,16 @@ impl State {
                         self.octree.set(x, y, 0, Voxel::new(255, 0, 255));
                     },
                     Some(VirtualKeyCode::D) => {
-                        self.camera.position.x += 1.;
+                        self.camera.position.x += SPEED;
                     },
                     Some(VirtualKeyCode::A) => {
-                        self.camera.position.x -= 1.;
+                        self.camera.position.x -= SPEED;
                     },
                     Some(VirtualKeyCode::W) => {
-                        self.camera.position.z += 1.;
+                        self.camera.position.z += SPEED;
                     },
                     Some(VirtualKeyCode::S) => {
-                        self.camera.position.z -= 1.;
+                        self.camera.position.z -= SPEED;
                     },
                     Some(VirtualKeyCode::Space) => {
                         self.camera.position.y += 1.;
