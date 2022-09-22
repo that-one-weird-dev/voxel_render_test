@@ -14,3 +14,4 @@ futures-intrusive = "0.4.0"
 ocpalm = { path = "../ocpalm" }
 byte-slice-cast = "1.2.1"
 rand = "0.8.5"
+vox-format = "0.1.0"
