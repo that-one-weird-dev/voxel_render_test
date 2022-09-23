@@ -34,7 +34,7 @@ impl State {
         octree.set(1, 1, 0, Voxel::new(0, 255, 0));
 
         // Loading the model
-        let vox_data = vox_format::from_slice(include_bytes!("assets/doom.vox")).unwrap();
+        let vox_data = vox_format::from_slice(include_bytes!("assets/chr_knight.vox")).unwrap();
         for vox in vox_data.models[0].voxels.iter() {
             let color = vox_data.palette.colors[vox.color_index.0 as usize];
             
@@ -233,7 +233,7 @@ impl State {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
-        const SPEED: f32 = 10.;
+        const SPEED: f32 = 2.;
 
         match event {
             WindowEvent::KeyboardInput { input, ..  } => {
@@ -247,19 +247,19 @@ impl State {
                         self.octree.set(x, y, 0, Voxel::new(255, 0, 255));
                     },
                     Some(VirtualKeyCode::D) => {
-                        self.camera.position.x += SPEED * self.camera.position.y.cos();
-                        self.camera.position.z += SPEED * self.camera.position.y.sin();
+                        self.camera.position.x += SPEED * self.camera.rotation.y.cos();
+                        self.camera.position.z += SPEED * self.camera.rotation.y.sin();
                     },
                     Some(VirtualKeyCode::A) => {
-                        self.camera.position.x -= SPEED * self.camera.position.y.cos();
-                        self.camera.position.z -= SPEED * self.camera.position.y.sin();
+                        self.camera.position.x -= SPEED * self.camera.rotation.y.cos();
+                        self.camera.position.z -= SPEED * self.camera.rotation.y.sin();
                     },
                     Some(VirtualKeyCode::W) => {
-                        self.camera.position.x += SPEED * self.camera.rotation.y.sin();
+                        self.camera.position.x -= SPEED * self.camera.rotation.y.sin();
                         self.camera.position.z += SPEED * self.camera.rotation.y.cos();
                     },
                     Some(VirtualKeyCode::S) => {
-                        self.camera.position.x -= SPEED * self.camera.rotation.y.sin();
+                        self.camera.position.x += SPEED * self.camera.rotation.y.sin();
                         self.camera.position.z -= SPEED * self.camera.rotation.y.cos();
                     },
                     Some(VirtualKeyCode::Space) => {
@@ -269,10 +269,10 @@ impl State {
                         self.camera.position.y -= 1.;
                     },
                     Some(VirtualKeyCode::Left) => {
-                        self.camera.rotation.y -= 0.01;
+                        self.camera.rotation.y += 0.01;
                     },
                     Some(VirtualKeyCode::Right) => {
-                        self.camera.rotation.y += 0.01;
+                        self.camera.rotation.y -= 0.01;
                     },
                     _ => {},
                 }

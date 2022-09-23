@@ -192,12 +192,19 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let ray_origin = camera.position + vec3<f32>(in.tex_coords * 160., 1.);
-    let center_distance = (in.tex_coords - .5) * 20.;
+    let siny = sin(camera.rotation.y);
+    let cosy = cos(camera.rotation.y);
+
+    let ray_origin = camera.position + vec3<f32>(
+        ((in.tex_coords.x * 160.) - (in.tex_coords.x * 80.)) * cosy,
+        in.tex_coords.y * 160. - (in.tex_coords.y * 80.),
+        ((in.tex_coords.x * 160.) - (in.tex_coords.x * 80.)) * siny,
+    );
+    let center_distance = (in.tex_coords - .5) * 200.;
     let ray_direction = vec3<f32>(
-        100. * sin(camera.rotation.y) + center_distance.x,
-        center_distance.y,
-        100. * cos(camera.rotation.y),
+        -160. * siny,
+        0.,
+        160. * cosy,
     );
 
     let voxel_hit = cast_ray(ray_origin, ray_direction);
