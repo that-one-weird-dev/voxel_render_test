@@ -42,184 +42,146 @@ var<storage, read> octree: array<OctreeNode, 26208>;
 @binding(1)
 var<uniform> camera: Camera;
 
-let max_steps = 100;
-let cube_color = vec4<f32>(0., 1., 0., 1.);
+let max_steps = 200;
+let max_distance = 30.;
+
 
 fn is_null(val: u32) -> bool {
     return val == 4294967295u;
 }
 
-fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
+//random function from https://www.shadertoy.com/view/MlsXDf
+fn rnd(v: vec4<f32>) -> f32 { return fract(4.e4 * sin(dot(v,vec4<f32>(13.46,41.74,-73.36,14.27))+17.34)); }
 
-    let inv_dir = 1. / dir;
+//hash function by Dave_Hoskins https://www.shadertoy.com/view/4djSRW
+fn hash33(p: vec3<f32>) -> vec3<f32>
+{
+	var p3 = fract(p * vec3<f32>(.1031, .1030, .0973));
+    p3 += vec3<f32>(dot(p3, p3.yxz+19.19));
+    return fract((p3.xxy + p3.yxx)*p3.zyx);
+}
 
-    var current_node = octree[0];
-    var half_size = f32(1u << (8u - 1u)) * .5;
-
-    var aabb_stack: array<AABB, 8>;
-    var stack_index: u32;
-
-    var current_aabb: AABB;
-    current_aabb.min = vec3<f32>(
-        0.,
-        0.,
-        0.,
-    );
-    current_aabb.max = vec3<f32>(
-        half_size * 2.,
-        half_size * 2.,
-        half_size * 2.,
-    ); 
-
-    aabb_stack[stack_index] = current_aabb;
-
-    var tmin: vec3<f32>;
-    var tmax: vec3<f32>;
-
-    var t0: vec3<f32>;
-    var t1: vec3<f32>;
-
-    var tnear: f32;
-    var tfar: f32;
-
-    var index: u32;
-
-    var voxel_hit: u32;
-
-    var cast_ray = true;
-    var find_node = true;
-    var reset = false;
-
-    // Checks if the root is also a leaf node
-    if (is_null(current_node.children[0])) {
-        return current_node.color;
+//0 is empty, 1 is subdivide and 2 is full
+fn getvoxel(p: vec3<f32>, size: f32) -> i32 {
+    if (p.x==0.0&&p.y==0.0) {
+        return 0;
     }
+    
+    let val = rnd(vec4<f32>(p,size));
+    
+    if (val < .5) {
+        return 0;
+    } else if (val < .95) {
+        return 1;
+    } else {
+        return 2;
+    }
+    
+    return i32(val*val*3.0);
+}
 
-    var i: i32;
+//ray-cube intersection, on the inside of the cube
+fn voxel(ro: vec3<f32>, rd: vec3<f32>, ird: vec3<f32>, size: f32) -> vec3<f32> {
+    return -(sign(rd) * (ro - (size * .5))- (size * .5)) * ird;
+}
+
+fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
+    var current_node = octree[0];
+
+    var size = 1.0;
+
+    var lro = origin % size;
+    var fro = origin - lro;
+    var ird = 1.0 / max(abs(dir), vec3<f32>(0.001));
+    var mask: vec3<f32>;
+    var exitoct = false;
+    var recursions = 0;
+    var dist = 0.;
+    var fdist = 0.;
+    var edge = 0.;
+    var lastmask: vec3<f32>;
+    var normal: vec3<f32>;
+    var i = 0;
 
     for (i = 0; i < max_steps; i++) {
-        if (cast_ray) {
-            // -------------- Collision checking ---------------------
-            tmin = (current_aabb.min - origin) * inv_dir;
-            tmax = (current_aabb.max - origin) * inv_dir;
+        if (dist > max_distance) { break; }
 
-            t0 = min(tmin, tmax);
-            t1 = max(tmin, tmax);
+        if (exitoct) {
+            var newfro = floor(fro / (size * 2.)) * (size * 2.);
 
-            tnear = max(max(t0.x, t0.y), t0.z);
-            tfar = min(min(t1.x, t1.y), t1.z);
+            lro += fro - newfro;
+            fro = newfro;
+            recursions -= 1;
+            size *= 2.;
 
-            if (tfar < 0.) {
-                // The box is in the other direction
-                return 0u;
+            exitoct = (recursions > 0) && (abs(dot(((fro / size + 0.5) % 2.) - 1. + mask * sign(dir) * .5, mask)) < .1);
+        } else {
+            var voxelstate = getvoxel(fro, size);
+            if (voxelstate == 1 && recursions > 5) {
+                voxelstate = 0;
             }
+            if (voxelstate == 1 && recursions <= 5) {
+                recursions += 1;
+                size *= .5;
+            
+                var mask2 = step(vec3<f32>(size), lro);
+                fro += mask2 * size;
+                lro -= mask2 * size;
+            } else if (voxelstate == 0 || voxelstate == 2) {
+                let hit = voxel(lro, dir, ird, size);
 
-            if (tnear > tfar) {
-                // Ray isn't intersecting the box
-                return 0u;
-            }
+                mask = vec3<f32>(hit < min(hit.yzx, hit.zxy));
 
-            t0 = origin + dir * (tnear + 0.001);
-            t1 = origin + dir * (tfar + 0.001);
+                let len = dot(hit, mask);
 
-            if (i % 3 == 1) {
-                reset = true;
-                find_node = false;
-            }
-        }
-
-        if (find_node) {
-            // Find smallest voxel in that point
-            loop {
-                // Subdivision index calculcation
-                index = 0u;
-                if (t0.x >= current_aabb.min.x + half_size) {
-                    index |= 4u;
-                    current_aabb.min.x += half_size;
-                } else {
-                    current_aabb.max.x -= half_size;
-                }
-                if (t0.y >= current_aabb.min.y + half_size) {
-                    index |= 2u;
-                    current_aabb.min.y += half_size;
-                } else {
-                    current_aabb.max.y -= half_size;
-                }
-                if (t0.z >= current_aabb.min.z + half_size) {
-                    index |= 1u;
-                    current_aabb.min.z += half_size;
-                } else {
-                    current_aabb.max.z -= half_size;
-                }
-
-                let child = current_node.children[index];
-                current_node = octree[child];
-
-                half_size *= .5;
-                stack_index += 1u;
-                aabb_stack[stack_index] = current_aabb;
-                
-                if (is_null(current_node.children[0])) {
-                    voxel_hit = current_node.color;
-                    reset = false;
-                    cast_ray = true;
+                if (voxelstate == 2) {
                     break;
                 }
+
+                //moving forward in ray direction, and checking if i need to go up a level
+                dist += len;
+                fdist += len;
+                lro += dir * len-mask * sign(dir) * size;
+                let newfro = fro + mask * sign(dir) * size;
+                exitoct = all(floor(newfro / size * 0.5 + 0.25) != floor(fro / size * 0.5 + 0.25)) && (recursions > 0);
+                fro = newfro;
+                lastmask = mask;
             }
-        }
-
-        // Check if the voxel has data
-        if (voxel_hit != 0u) {
-            break;
-        }
-        
-        if (reset) {
-            t0 = t1;
-
-            stack_index = 0u;
-            current_aabb = aabb_stack[stack_index];
-            current_node = octree[0];
-            half_size = f32(1u << (8u - 1u)) * .5;
-            
-            cast_ray = false;
-            find_node = true;
-            reset = false;
         }
     }
 
-    return voxel_hit;
+    //origin += dir * dist;
+    if (i < max_steps && dist < max_distance) {
+        let val = fract(dot(fro, vec3<f32>(15.23, 754.345, 3.454)));
+        let color = sin(val * vec3<f32>(39.896, 57.3225, 48.25)) * .5 + .5;
+        return vec4<f32>(color * (normal * .25 + .75), 1.);
+    } else {
+        return vec4<f32>(edge);
+    }
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let siny = sin(camera.rotation.y);
-    let cosy = cos(camera.rotation.y);
+    let uv = (in.tex_coords.xy - .5) * 2.;
+    
+    let ro = vec3<f32>(.5) + camera.position;
+    let rd = normalize(vec3<f32>(uv,1.0));
 
-    let ray_origin = camera.position + vec3<f32>(
-        ((in.tex_coords.x * 160.) - (in.tex_coords.x * 80.)) * cosy,
-        in.tex_coords.y * 160. - (in.tex_coords.y * 80.),
-        ((in.tex_coords.x * 160.) - (in.tex_coords.x * 80.)) * siny,
-    );
-    let center_distance = (in.tex_coords - .5) * 200.;
-    let ray_direction = vec3<f32>(
-        -160. * siny,
-        0.,
-        160. * cosy,
-    );
+    let voxel_hit = cast_ray(ro, rd);
 
-    let voxel_hit = cast_ray(ray_origin, ray_direction);
+    return voxel_hit;
 
-    // If transparent return
-    if ((voxel_hit & 255u) != 255u) {
-        return vec4<f32>(.2, .2, .2, 1.);
-    }
+    // // If transparent return
+    // if ((voxel_hit & 255u) != 255u) {
+    //     return vec4<f32>(.2, .2, .2, 1.);
+    // }
 
-    // Otherwise convert the color
+    // // Otherwise convert the color
 
-    return vec4<f32>(
-        f32(voxel_hit >> 24u) / 255.,
-        f32((voxel_hit >> 16u) & 255u) / 255.,
-        f32((voxel_hit >> 8u) & 255u) / 255.,
-        1.,
-    );
+    // return vec4<f32>(
+    //     f32(voxel_hit >> 24u) / 255.,
+    //     f32((voxel_hit >> 16u) & 255u) / 255.,
+    //     f32((voxel_hit >> 8u) & 255u) / 255.,
+    //     1.,
+    // );
 }

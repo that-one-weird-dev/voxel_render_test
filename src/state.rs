@@ -34,16 +34,16 @@ impl State {
         octree.set(1, 1, 0, Voxel::new(0, 255, 0));
 
         // Loading the model
-        let vox_data = vox_format::from_slice(include_bytes!("assets/chr_knight.vox")).unwrap();
+        let vox_data = vox_format::from_slice(include_bytes!("assets/doom.vox")).unwrap();
         for vox in vox_data.models[0].voxels.iter() {
             let color = vox_data.palette.colors[vox.color_index.0 as usize];
-            
-            octree.set(
-                vox.point.x as i32,
-                vox.point.z as i32,
-                vox.point.y as i32,
-                Voxel::new(color.r, color.g, color.b),
-            );
+
+            // octree.set(
+            //     vox.point.x as i32,
+            //     vox.point.z as i32,
+            //     vox.point.y as i32,
+            //     Voxel::new(color.r, color.g, color.b),
+            // );
         }
 
         // The instance is a handle to our GPU
@@ -243,8 +243,9 @@ impl State {
 
                         let x = rng.gen_range(-64..64);
                         let y = rng.gen_range(-64..64);
+                        let z = rng.gen_range(-64..64);
 
-                        self.octree.set(x, y, 0, Voxel::new(255, 0, 255));
+                        self.octree.set(x, y, z, Voxel::new(255, 0, 255));
                     },
                     Some(VirtualKeyCode::D) => {
                         self.camera.position.x += SPEED * self.camera.rotation.y.cos();
@@ -269,10 +270,10 @@ impl State {
                         self.camera.position.y -= 1.;
                     },
                     Some(VirtualKeyCode::Left) => {
-                        self.camera.rotation.y += 0.01;
+                        self.camera.rotation.y += 0.03;
                     },
                     Some(VirtualKeyCode::Right) => {
-                        self.camera.rotation.y -= 0.01;
+                        self.camera.rotation.y -= 0.03;
                     },
                     _ => {},
                 }
