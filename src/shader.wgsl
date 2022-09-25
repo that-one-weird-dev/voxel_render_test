@@ -63,10 +63,6 @@ fn hash33(p: vec3<f32>) -> vec3<f32>
 
 //0 is empty, 1 is subdivide and 2 is full
 fn getvoxel(p: vec3<f32>, size: f32) -> i32 {
-    if (p.x==0.0&&p.y==0.0) {
-        return 0;
-    }
-    
     let val = rnd(vec4<f32>(p,size));
     
     if (val < .5) {
@@ -85,10 +81,12 @@ fn voxel(ro: vec3<f32>, rd: vec3<f32>, ird: vec3<f32>, size: f32) -> vec3<f32> {
     return -(sign(rd) * (ro - (size * .5))- (size * .5)) * ird;
 }
 
-fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
+fn cast_ray(orig: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var current_node = octree[0];
 
     var size = 1.0;
+
+    var origin = orig;
 
     var lro = origin % size;
     var fro = origin - lro;
@@ -98,7 +96,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var recursions = 0;
     var dist = 0.;
     var fdist = 0.;
-    var edge = 0.;
+    var edge = 1.;
     var lastmask: vec3<f32>;
     var normal: vec3<f32>;
     var i = 0;
@@ -141,20 +139,23 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
                 //moving forward in ray direction, and checking if i need to go up a level
                 dist += len;
                 fdist += len;
-                lro += dir * len-mask * sign(dir) * size;
+                lro += dir * len - mask * sign(dir) * size;
                 let newfro = fro + mask * sign(dir) * size;
-                exitoct = all(floor(newfro / size * 0.5 + 0.25) != floor(fro / size * 0.5 + 0.25)) && (recursions > 0);
+                exitoct = any(floor(newfro / size * 0.5 + 0.25) != floor(fro / size * 0.5 + 0.25)) && (recursions > 0);
                 fro = newfro;
                 lastmask = mask;
             }
         }
     }
 
-    //origin += dir * dist;
+    origin += dir * dist;
     if (i < max_steps && dist < max_distance) {
         let val = fract(dot(fro, vec3<f32>(15.23, 754.345, 3.454)));
+
+        normal = -lastmask * sign(dir);
+
         let color = sin(val * vec3<f32>(39.896, 57.3225, 48.25)) * .5 + .5;
-        return vec4<f32>(color * (normal * .25 + .75), 1.);
+        return vec4<f32>(color * (normal * .25 + .75), 1.) * edge;
     } else {
         return vec4<f32>(edge);
     }
@@ -162,10 +163,22 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = (in.tex_coords.xy - .5) * 2.;
+    let uv = (in.tex_coords.xy * 2.) - 1.;
     
     let ro = vec3<f32>(.5) + camera.position;
-    let rd = normalize(vec3<f32>(uv,1.0));
+    var rd = normalize(vec3<f32>(uv,1.0));
+
+    let rotx = -camera.rotation.x;
+    let roty = -camera.rotation.y;
+
+    let ymat = mat2x2<f32>(cos(rotx),sin(rotx),-sin(rotx),cos(rotx));
+    let xmat = mat2x2<f32>(cos(roty),sin(roty),-sin(roty),cos(roty));
+
+    var newrd = rd.yz * ymat;
+    rd = vec3<f32>(rd.x, newrd.x, newrd.y);
+
+    newrd = rd.xz * xmat;
+    rd = vec3<f32>(newrd.x, rd.y, newrd.y);
 
     let voxel_hit = cast_ray(ro, rd);
 

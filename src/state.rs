@@ -2,7 +2,7 @@ use std::{iter::once, mem::size_of};
 use rand::prelude::*;
 use ocpalm::Octree;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType};
-use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode}, window::Window};
+use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode, ElementState}, window::Window};
 
 use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}};
 
@@ -233,49 +233,57 @@ impl State {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
-        const SPEED: f32 = 2.;
+        const SPEED: f32 = 0.084328794;
 
         match event {
             WindowEvent::KeyboardInput { input, ..  } => {
-                match input.virtual_keycode {
-                    Some(VirtualKeyCode::E) => {
-                        let mut rng = rand::thread_rng();
+                if let ElementState::Pressed = input.state {
+                    match input.virtual_keycode {
+                        Some(VirtualKeyCode::E) => {
+                            let mut rng = rand::thread_rng();
 
-                        let x = rng.gen_range(-64..64);
-                        let y = rng.gen_range(-64..64);
-                        let z = rng.gen_range(-64..64);
+                            let x = rng.gen_range(-64..64);
+                            let y = rng.gen_range(-64..64);
+                            let z = rng.gen_range(-64..64);
 
-                        self.octree.set(x, y, z, Voxel::new(255, 0, 255));
-                    },
-                    Some(VirtualKeyCode::D) => {
-                        self.camera.position.x += SPEED * self.camera.rotation.y.cos();
-                        self.camera.position.z += SPEED * self.camera.rotation.y.sin();
-                    },
-                    Some(VirtualKeyCode::A) => {
-                        self.camera.position.x -= SPEED * self.camera.rotation.y.cos();
-                        self.camera.position.z -= SPEED * self.camera.rotation.y.sin();
-                    },
-                    Some(VirtualKeyCode::W) => {
-                        self.camera.position.x -= SPEED * self.camera.rotation.y.sin();
-                        self.camera.position.z += SPEED * self.camera.rotation.y.cos();
-                    },
-                    Some(VirtualKeyCode::S) => {
-                        self.camera.position.x += SPEED * self.camera.rotation.y.sin();
-                        self.camera.position.z -= SPEED * self.camera.rotation.y.cos();
-                    },
-                    Some(VirtualKeyCode::Space) => {
-                        self.camera.position.y += 1.;
-                    },
-                    Some(VirtualKeyCode::LShift) => {
-                        self.camera.position.y -= 1.;
-                    },
-                    Some(VirtualKeyCode::Left) => {
-                        self.camera.rotation.y += 0.03;
-                    },
-                    Some(VirtualKeyCode::Right) => {
-                        self.camera.rotation.y -= 0.03;
-                    },
-                    _ => {},
+                            self.octree.set(x, y, z, Voxel::new(255, 0, 255));
+                        },
+                        Some(VirtualKeyCode::D) => {
+                            self.camera.position.x += SPEED * self.camera.rotation.y.cos();
+                            self.camera.position.z += SPEED * self.camera.rotation.y.sin();
+                        },
+                        Some(VirtualKeyCode::A) => {
+                            self.camera.position.x -= SPEED * self.camera.rotation.y.cos();
+                            self.camera.position.z -= SPEED * self.camera.rotation.y.sin();
+                        },
+                        Some(VirtualKeyCode::W) => {
+                            self.camera.position.x -= SPEED * self.camera.rotation.y.sin();
+                            self.camera.position.z += SPEED * self.camera.rotation.y.cos();
+                        },
+                        Some(VirtualKeyCode::S) => {
+                            self.camera.position.x += SPEED * self.camera.rotation.y.sin();
+                            self.camera.position.z -= SPEED * self.camera.rotation.y.cos();
+                        },
+                        Some(VirtualKeyCode::Space) => {
+                            self.camera.position.y += SPEED;
+                        },
+                        Some(VirtualKeyCode::LShift) => {
+                            self.camera.position.y -= SPEED;
+                        },
+                        Some(VirtualKeyCode::Left) => {
+                            self.camera.rotation.y += 0.03;
+                        },
+                        Some(VirtualKeyCode::Right) => {
+                            self.camera.rotation.y -= 0.03;
+                        },
+                        Some(VirtualKeyCode::Up) => {
+                            self.camera.rotation.x -= 0.03;
+                        },
+                        Some(VirtualKeyCode::Down) => {
+                            self.camera.rotation.x += 0.03;
+                        },
+                        _ => {},
+                    }
                 }
             },
             _ => {},
