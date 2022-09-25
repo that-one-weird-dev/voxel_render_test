@@ -29,21 +29,17 @@ impl State {
         // ---------------- Octree -------------
         let mut octree = Octree::new(8);
 
-        octree.set(0, 1, 0, Voxel::new(0, 0, 30));
-        octree.set(1, 0, 0, Voxel::new(255, 0, 0));
-        octree.set(1, 1, 0, Voxel::new(0, 255, 0));
-
         // Loading the model
-        let vox_data = vox_format::from_slice(include_bytes!("assets/doom.vox")).unwrap();
+        let vox_data = vox_format::from_slice(include_bytes!("assets/chr_knight.vox")).unwrap();
         for vox in vox_data.models[0].voxels.iter() {
             let color = vox_data.palette.colors[vox.color_index.0 as usize];
 
-            // octree.set(
-            //     vox.point.x as i32,
-            //     vox.point.z as i32,
-            //     vox.point.y as i32,
-            //     Voxel::new(color.r, color.g, color.b),
-            // );
+            octree.set(
+                vox.point.x as i32,
+                vox.point.z as i32,
+                vox.point.y as i32,
+                Voxel::new(color.r, color.g, color.b),
+            );
         }
 
         // The instance is a handle to our GPU
