@@ -17,6 +17,7 @@ struct OctreeNode {
 struct Camera {
     position: vec3<f32>,
     rotation: vec2<f32>,
+    aspect_ratio: f32,
 }
 
 @vertex
@@ -122,7 +123,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = (in.tex_coords.xy * 2.) - 1.;
+    let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio);
     
     let ro = vec3<f32>(16.0001, 16.0001, 16.0001) + camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));

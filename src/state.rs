@@ -79,10 +79,11 @@ impl State {
         surface.configure(&device, &config);
 
         // ------------------------------------ Render pipeline ----------------------------------------
-        let camera = Camera {
-            position: Vec3::new(0., 0., 0.),
-            rotation: Vec2::new(0., 0.),
-        };
+        let camera = Camera::new(
+            Vec3::new(0., 0., 0.),
+            Vec2::new(0., 0.),
+            size.height as f32 / size.width as f32,
+        );
 
         let octree_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Octree buffer"),
@@ -225,6 +226,7 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.camera.aspect_ratio = new_size.height as f32 / new_size.width as f32;
         }
     }
 
