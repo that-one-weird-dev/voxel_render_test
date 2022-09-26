@@ -9,7 +9,7 @@ struct VertexOutput {
 };
 
 struct OctreeNode {
-    children: array<u32, 8>,
+    children: u32,
     parent: u32,
     color: u32,
 }
@@ -40,10 +40,6 @@ var<uniform> camera: Camera;
 let max_steps = 100;
 let max_distance = 30.;
 let octree_depth = 8;
-
-fn is_null(val: u32) -> bool {
-    return val == 4294967295u;
-}
 
 fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
@@ -83,9 +79,9 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         if (all(origin > current_aabb) && all(origin < (current_aabb + size))) {
             t0 = origin;
         } else {
-            t0 = origin + long_dir * (tnear + 0.0000001);
+            t0 = origin + long_dir * (tnear + 0.000001);
         }
-        t1 = origin + long_dir * (tfar + 0.0000001);
+        t1 = origin + long_dir * (tfar + 0.000001);
 
         if (size < 31.) {
             size = 32.;
@@ -98,7 +94,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         // Check smallest voxel
         loop {
             // If leaf then break
-            if (is_null(current_node.children[0])) {
+            if (current_node.children == 0u) {
                 break;
             }
 
@@ -108,8 +104,8 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
                   | (u32(t0.z > (current_aabb.z + size)) * 1u);
 
             // TODO: One-line this
-            let child = current_node.children[index];
-            current_node = octree[child];
+            let child = current_node.children + index;
+            current_node = octree[child - 1u];
 
             current_aabb.x += f32((index & 4u) == 4u) * size;
             current_aabb.y += f32((index & 2u) == 2u) * size;
@@ -128,7 +124,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = (in.tex_coords.xy * 2.) - 1.;
     
-    let ro = vec3<f32>(16.001, 16.001, 16.001) + camera.position;
+    let ro = vec3<f32>(16.0001, 16.0001, 16.0001) + camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));
 
     let rotx = -camera.rotation.x;
