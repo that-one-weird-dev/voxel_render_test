@@ -63,6 +63,8 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
     var tnear: f32;
     var tfar: f32;
+
+    let inside_mask = 1. - f32(all(origin > current_aabb) && all(origin < (current_aabb + size)));
     
     for (var i = 0; i < max_steps; i += 1) {
         // Intersect
@@ -77,11 +79,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
             break;
         }
 
-        if (all(origin > current_aabb) && all(origin < (current_aabb + size))) {
-            t0 = origin;
-        } else {
-            t0 = origin + long_dir * (tnear + 0.000001);
-        }
+        t0 = origin + (inside_mask * long_dir * (tnear + 0.000001));
         t1 = origin + long_dir * (tfar + 0.000001);
 
         if (size < 31.) {
@@ -104,7 +102,6 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
                   | (u32(t0.y > (current_aabb.y + size)) * 2u)
                   | (u32(t0.z > (current_aabb.z + size)) * 1u);
 
-            // TODO: One-line this
             let child = current_node.children + index;
             current_node = octree[child - 1u];
 
