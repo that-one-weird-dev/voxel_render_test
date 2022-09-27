@@ -41,6 +41,7 @@ var<uniform> camera: Camera;
 let max_steps = 100;
 let max_distance = 30.;
 let octree_depth = 8;
+let ray_length = 100.;
 
 fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
@@ -48,8 +49,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
     var size = 32.;
 
-    let long_dir = dir * 1000.;
-    let inv_dir = 1. / long_dir;
+    let inv_dir = 1. / dir;
 
     var index = 0u;
 
@@ -79,8 +79,8 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
             break;
         }
 
-        t0 = origin + (inside_mask * long_dir * (tnear + 0.000001));
-        t1 = origin + long_dir * (tfar + 0.000001);
+        t0 = origin + (inside_mask * dir * (tnear + 0.000001));
+        t1 = origin + dir * (tfar + 0.000001);
 
         if (size < 31.) {
             size = 32.;
@@ -137,7 +137,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     newrd = rd.xz * xmat;
     rd = vec3<f32>(newrd.x, rd.y, newrd.y);
 
-    let voxel_hit = cast_ray(ro, rd);
+    let voxel_hit = cast_ray(ro, rd * ray_length);
 
     // If transparent return
     if (voxel_hit == 0u) {
