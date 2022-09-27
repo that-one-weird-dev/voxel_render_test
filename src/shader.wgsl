@@ -65,6 +65,9 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
     var tfar: f32;
 
     let inside_mask = 1. - f32(all(origin > current_aabb) && all(origin < (current_aabb + size)));
+
+    var old_node = 0u;
+    var child = 0u;
     
     for (var i = 0; i < max_steps; i += 1) {
         // Intersect
@@ -94,6 +97,11 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         loop {
             // If leaf then break
             if (current_node.children == 0u) {
+                if (old_node == child - 1u) {
+                    return 0u;
+                }
+                old_node = child - 1u;
+
                 break;
             }
 
@@ -102,7 +110,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
                   | (u32(t0.y > (current_aabb.y + size)) * 2u)
                   | (u32(t0.z > (current_aabb.z + size)) * 1u);
 
-            let child = current_node.children + index;
+            child = current_node.children + index;
             current_node = octree[child - 1u];
 
             current_aabb.x += f32((index & 4u) == 4u) * size;
@@ -122,7 +130,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio);
     
-    let ro = vec3<f32>(16.0001, 16.0001, 16.0001) + camera.position;
+    let ro = vec3<f32>(0.0001, 0.0001, 0.0001) + camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));
 
     let rotx = -camera.rotation.x;
