@@ -1,7 +1,7 @@
 use std::{iter::once, mem::size_of};
 use rand::prelude::*;
 use ocpalm::Octree;
-use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, PresentMode};
+use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, PresentMode, Backends};
 use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode, ElementState}, window::Window};
 
 use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}};
@@ -44,7 +44,7 @@ impl State {
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::Backends::all()); // TODO: This should be all()
+        let instance = wgpu::Instance::new(get_backend());
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance.request_adapter(
             &wgpu::RequestAdapterOptions {
@@ -345,5 +345,15 @@ impl State {
         output.present();
 
         Ok(())
+    }
+}
+
+fn get_backend() -> Backends {
+    if cfg!(target_os = "windows") {
+        Backends::DX12
+    } else if cfg!(target_os = "linux") {
+        Backends::GL
+    } else {
+        Backends::all()
     }
 }
