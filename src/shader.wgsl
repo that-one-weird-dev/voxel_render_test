@@ -42,8 +42,10 @@ let max_steps = 100;
 let max_distance = 30.;
 let octree_depth = 8;
 let ray_length = 100.;
+let background_color = vec4<f32>(.2, .2, .2, 1.);
+let frac_1_255 = 0.003921569; // Approximation of 1. / 255.
 
-fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
+fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
     var current_node = octree[0];
 
@@ -60,6 +62,9 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 
     var t0: vec3<f32>;
     var t1: vec3<f32>;
+
+    var t1offset: vec3<f32>;
+    var biggest: f32;
 
     var tnear: f32;
     var tfar: f32;
@@ -83,7 +88,14 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         }
 
         t0 = origin + (inside_mask * dir * (tnear + 0.000001));
-        t1 = origin + dir * (tfar + 0.000001);
+        t1 = origin + dir * tfar;
+
+        t1offset = abs(t1 - (current_aabb + (size * .5)));
+        biggest = max(max(t1offset.x, t1offset.y), t1offset.z);
+
+        t1.x += f32(biggest == t1offset.x) * sign(dir.x) * 0.001;
+        t1.y += f32(biggest == t1offset.y) * sign(dir.y) * 0.001;
+        t1.z += f32(biggest == t1offset.z) * sign(dir.z) * 0.001;
 
         if (size < 31.) {
             size = 32.;
@@ -98,7 +110,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
             // If leaf then break
             if (current_node.children == 0u) {
                 if (old_node == child - 1u) {
-                    return 0u;
+                    return background_color;
                 }
                 old_node = child - 1u;
 
@@ -123,14 +135,29 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         }
     }
 
-    return current_node.color;
+    // If transparent return
+    if (current_node.color == 0u) {
+        return background_color;
+    }
+
+    var color: vec4<f32>;
+
+    // Otherwise convert the color
+    color = vec4<f32>(
+        f32(current_node.color >> 24u) * frac_1_255 + f32(biggest == t1offset.x && dir.x < 0.) * .1,
+        f32((current_node.color >> 16u) & 255u) * frac_1_255 + f32(biggest == t1offset.y && dir.y < 0.) * .1,
+        f32((current_node.color >> 8u) & 255u) * frac_1_255 + f32(biggest == t1offset.z && dir.z < 0.) * .1,
+        1.,
+    );
+
+    return color;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio);
     
-    let ro = vec3<f32>(0.0001, 0.0001, 0.0001) + camera.position;
+    let ro = vec3<f32>(16.0001, 16.0001, 16.0001) + camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));
 
     let rotx = -camera.rotation.x;
@@ -145,19 +172,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     newrd = rd.xz * xmat;
     rd = vec3<f32>(newrd.x, rd.y, newrd.y);
 
-    let voxel_hit = cast_ray(ro, rd * ray_length);
+    let color = cast_ray(ro, rd * ray_length);
 
-    // If transparent return
-    if (voxel_hit == 0u) {
-        return vec4<f32>(.2, .2, .2, 1.);
-    }
-
-    // Otherwise convert the color
-
-    return vec4<f32>(
-        f32(voxel_hit >> 24u) / 255.,
-        f32((voxel_hit >> 16u) & 255u) / 255.,
-        f32((voxel_hit >> 8u) & 255u) / 255.,
-        1.,
-    );
+    return color;
 }
