@@ -42,6 +42,8 @@ let max_steps = 100;
 let max_distance = 30.;
 let octree_depth = 8;
 let ray_length = 100.;
+let background_color = vec4<f32>(.2, .2, .2, 1.);
+let frac_1_255 = 0.003921569; // Approximation of 1. / 255.
 
 fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
@@ -108,7 +110,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
             // If leaf then break
             if (current_node.children == 0u) {
                 if (old_node == child - 1u) {
-                    return vec4<f32>(.2, .2, .2, 1.);
+                    return background_color;
                 }
                 old_node = child - 1u;
 
@@ -135,24 +137,18 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
     // If transparent return
     if (current_node.color == 0u) {
-        return vec4<f32>(.2, .2, .2, 1.);
+        return background_color;
     }
 
     var color: vec4<f32>;
 
     // Otherwise convert the color
     color = vec4<f32>(
-        f32(current_node.color >> 24u) / 255.,
-        f32((current_node.color >> 16u) & 255u) / 255.,
-        f32((current_node.color >> 8u) & 255u) / 255.,
+        f32(current_node.color >> 24u) * frac_1_255 + f32(biggest == t1offset.x && dir.x < 0.) * .1,
+        f32((current_node.color >> 16u) & 255u) * frac_1_255 + f32(biggest == t1offset.y && dir.y < 0.) * .1,
+        f32((current_node.color >> 8u) & 255u) * frac_1_255 + f32(biggest == t1offset.z && dir.z < 0.) * .1,
         1.,
     );
-
-    if ((biggest == t1offset.x && dir.x < 0.)
-     || (biggest == t1offset.y && dir.y < 0.)
-     || (biggest == t1offset.z && dir.z < 0.)) {
-        color += vec4<f32>(.2, .2, .2, 0.);
-    }
 
     return color;
 }
