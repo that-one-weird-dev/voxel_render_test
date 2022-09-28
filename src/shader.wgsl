@@ -61,6 +61,9 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
     var t0: vec3<f32>;
     var t1: vec3<f32>;
 
+    var t1offset: vec3<f32>;
+    var biggest: f32;
+
     var tnear: f32;
     var tfar: f32;
 
@@ -83,7 +86,14 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
         }
 
         t0 = origin + (inside_mask * dir * (tnear + 0.000001));
-        t1 = origin + dir * (tfar + 0.000001);
+        t1 = origin + dir * tfar;
+
+        t1offset = abs(t1 - (current_aabb + (size * .5)));
+        biggest = max(max(t1offset.x, t1offset.y), t1offset.z);
+
+        t1.x += f32(biggest == t1offset.x) * sign(dir.x) * 0.001;
+        t1.y += f32(biggest == t1offset.y) * sign(dir.y) * 0.001;
+        t1.z += f32(biggest == t1offset.z) * sign(dir.z) * 0.001;
 
         if (size < 31.) {
             size = 32.;
@@ -130,7 +140,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> u32 {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio);
     
-    let ro = vec3<f32>(0.0001, 0.0001, 0.0001) + camera.position;
+    let ro = vec3<f32>(16.0001, 16.0001, 16.0001) + camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));
 
     let rotx = -camera.rotation.x;
