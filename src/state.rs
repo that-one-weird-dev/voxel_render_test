@@ -349,9 +349,7 @@ impl State {
 }
 
 fn get_backend() -> Backends {
-    if cfg!(target_os = "windows") {
-        Backends::DX12
-    } else if cfg!(target_os = "linux") {
+    if cfg!(target_os = "linux") {
         Backends::GL
     } else {
         Backends::all()
