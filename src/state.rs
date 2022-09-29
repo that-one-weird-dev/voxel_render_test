@@ -1,8 +1,8 @@
-use std::{iter::once, mem::size_of};
+use std::{iter::once, mem::size_of, collections::HashSet};
 use rand::prelude::*;
 use ocpalm::Octree;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, PresentMode, Backends};
-use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode, ElementState}, window::Window};
+use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode, ElementState, Event, DeviceEvent}, window::Window};
 
 use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}};
 
@@ -20,6 +20,8 @@ pub struct State {
     octree_buffer: Buffer,
     camera_buffer: Buffer,
     camera: Camera,
+    keys_down: HashSet<VirtualKeyCode>,
+    velocity: Vec3,
 }
 
 impl State {
@@ -217,6 +219,8 @@ impl State {
             octree_buffer,
             camera_buffer,
             camera,
+            keys_down: HashSet::new(),
+            velocity: Vec3::new(0., 0., 0.),
         }
     }
 
@@ -230,66 +234,76 @@ impl State {
         }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
-        const SPEED: f32 = 0.084328794;
+    pub fn input(&mut self, event: &Event<()>) {
+        const SENSITIVITY: f32 = 0.001;
 
         match event {
-            WindowEvent::KeyboardInput { input, ..  } => {
-                if let ElementState::Pressed = input.state {
-                    match input.virtual_keycode {
-                        Some(VirtualKeyCode::E) => {
-                            let mut rng = rand::thread_rng();
-
-                            let x = rng.gen_range(-64..64);
-                            let y = rng.gen_range(-64..64);
-                            let z = rng.gen_range(-64..64);
-
-                            self.octree.set(x, y, z, Voxel::new(255, 0, 255));
-                        },
-                        Some(VirtualKeyCode::D) => {
-                            self.camera.position.x += SPEED * self.camera.rotation.y.cos();
-                            self.camera.position.z += SPEED * self.camera.rotation.y.sin();
-                        },
-                        Some(VirtualKeyCode::A) => {
-                            self.camera.position.x -= SPEED * self.camera.rotation.y.cos();
-                            self.camera.position.z -= SPEED * self.camera.rotation.y.sin();
-                        },
-                        Some(VirtualKeyCode::W) => {
-                            self.camera.position.x -= SPEED * self.camera.rotation.y.sin();
-                            self.camera.position.z += SPEED * self.camera.rotation.y.cos();
-                        },
-                        Some(VirtualKeyCode::S) => {
-                            self.camera.position.x += SPEED * self.camera.rotation.y.sin();
-                            self.camera.position.z -= SPEED * self.camera.rotation.y.cos();
-                        },
-                        Some(VirtualKeyCode::Space) => {
-                            self.camera.position.y += SPEED;
-                        },
-                        Some(VirtualKeyCode::LShift) => {
-                            self.camera.position.y -= SPEED;
-                        },
-                        Some(VirtualKeyCode::Left) => {
-                            self.camera.rotation.y += 0.03;
-                        },
-                        Some(VirtualKeyCode::Right) => {
-                            self.camera.rotation.y -= 0.03;
-                        },
-                        Some(VirtualKeyCode::Up) => {
-                            self.camera.rotation.x -= 0.03;
-                        },
-                        Some(VirtualKeyCode::Down) => {
-                            self.camera.rotation.x += 0.03;
-                        },
-                        _ => {},
-                    }
-                }
+            Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
+                self.camera.rotation.x += delta.1 as f32 * SENSITIVITY;
+                self.camera.rotation.y -= delta.0 as f32 * SENSITIVITY;
+            },
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { input, ..  }, .. } => {
+                match input.virtual_keycode {
+                    Some(keycode) => {
+                        match input.state {
+                            ElementState::Pressed => {
+                                self.keys_down.insert(keycode);
+                            },
+                            ElementState::Released => {
+                                self.keys_down.remove(&keycode);
+                            },
+                        }
+                    },
+                    None => {},
+                };
             },
             _ => {},
         }
-        false
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, delta: f32) {
+        const SPEED: f32 = 2.5;
+
+        self.velocity.x = 0.;
+        self.velocity.y = 0.;
+        self.velocity.z = 0.;
+
+        if self.keys_down.contains(&VirtualKeyCode::E) {
+            let mut rng = rand::thread_rng();
+
+            let x = rng.gen_range(-64..64);
+            let y = rng.gen_range(-64..64);
+            let z = rng.gen_range(-64..64);
+
+            self.octree.set(x, y, z, Voxel::new(255, 0, 255));
+        }
+
+        if self.keys_down.contains(&VirtualKeyCode::D) {
+            self.velocity.x += SPEED * self.camera.rotation.y.cos();
+            self.velocity.z += SPEED * self.camera.rotation.y.sin();
+        }
+        if self.keys_down.contains(&VirtualKeyCode::A) {
+            self.velocity.x -= SPEED * self.camera.rotation.y.cos();
+            self.velocity.z -= SPEED * self.camera.rotation.y.sin();
+        }
+        if self.keys_down.contains(&VirtualKeyCode::W) {
+            self.velocity.x -= SPEED * self.camera.rotation.y.sin();
+            self.velocity.z += SPEED * self.camera.rotation.y.cos();
+        }
+        if self.keys_down.contains(&VirtualKeyCode::S) {
+            self.velocity.x += SPEED * self.camera.rotation.y.sin();
+            self.velocity.z -= SPEED * self.camera.rotation.y.cos();
+        }
+        if self.keys_down.contains(&VirtualKeyCode::Space) {
+            self.velocity.y += SPEED;
+        }
+        if self.keys_down.contains(&VirtualKeyCode::LShift) {
+            self.velocity.y += -SPEED;
+        }
+
+        self.camera.position.x += self.velocity.x * delta;
+        self.camera.position.y += self.velocity.y * delta;
+        self.camera.position.z += self.velocity.z * delta;
     }
 
     pub fn render(&mut self) -> Result<(), SurfaceError> {
