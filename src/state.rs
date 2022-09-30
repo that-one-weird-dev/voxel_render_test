@@ -262,7 +262,7 @@ impl State {
     }
 
     pub fn update(&mut self, delta: f32) {
-        const SPEED: f32 = 2.5;
+        const SPEED: f32 = 7.5;
 
         self.velocity.x = 0.;
         self.velocity.y = 0.;

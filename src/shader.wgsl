@@ -57,6 +57,10 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
     var current_aabb: vec3<f32>;
 
+    var stack_index = 0u;
+    var aabb_stack: array<vec3<f32>, octree_depth>;
+    aabb_stack[stack_index] = current_aabb;
+
     var tmin: vec3<f32>;
     var tmax: vec3<f32>;
 
@@ -70,9 +74,6 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var tfar: f32;
 
     let inside_mask = 1. - f32(all(origin > current_aabb) && all(origin < (current_aabb + size)));
-
-    var old_node = 0u;
-    var child = 0u;
     
     for (var i = 0; i < max_steps; i += 1) {
         // Intersect
@@ -97,10 +98,23 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         t1.y += f32(biggest == t1offset.y) * sign(dir.y) * 0.001;
         t1.z += f32(biggest == t1offset.z) * sign(dir.z) * 0.001;
 
-        if (size < 31.) {
-            size = 32.;
-            current_aabb = vec3<f32>();
-            current_node = octree[0];
+        if (current_node.children == 0u) {
+            loop {
+                current_node = octree[current_node.parent - 1u];
+
+                // This means the ray is outside of the max boudning box
+                if (stack_index == 0u) {
+                    return background_color;
+                }
+
+                stack_index -= 1u;
+                current_aabb = aabb_stack[stack_index];
+                size *= 2.;
+
+                if (!(any(t1 < current_aabb) || any(t1 > (current_aabb + size)))) {
+                    break;
+                }
+            }
 
             t0 = t1;
         }
@@ -109,11 +123,6 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         loop {
             // If leaf then break
             if (current_node.children == 0u) {
-                if (old_node == child - 1u) {
-                    return background_color;
-                }
-                old_node = child - 1u;
-
                 break;
             }
 
@@ -122,12 +131,15 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
                   | (u32(t0.y > (current_aabb.y + size)) * 2u)
                   | (u32(t0.z > (current_aabb.z + size)) * 1u);
 
-            child = current_node.children + index;
+            let child = current_node.children + index;
             current_node = octree[child - 1u];
 
             current_aabb.x += f32((index & 4u) == 4u) * size;
             current_aabb.y += f32((index & 2u) == 2u) * size;
             current_aabb.z += f32((index & 1u) == 1u) * size;
+
+            stack_index += 1u;
+            aabb_stack[stack_index] = current_aabb;
         }
 
         if (current_node.color != 0u) {
