@@ -29,17 +29,21 @@ impl State {
         let size = window.inner_size();
 
         // ---------------- Octree -------------
-        let mut octree = Octree::new(8);
+        let mut octree = Octree::new(12);
 
         // Loading the model
-        let vox_data = vox_format::from_slice(include_bytes!("assets/chr_knight.vox")).unwrap();
+        let vox_data = vox_format::from_slice(include_bytes!("assets/monu1.vox")).unwrap();
         for vox in vox_data.models[0].voxels.iter() {
             let color = vox_data.palette.colors[vox.color_index.0 as usize];
 
+            let x = vox.point.x;
+            let y = vox.point.y;
+            let z = vox.point.z;
+
             octree.set(
-                vox.point.x as i32,
-                vox.point.z as i32,
-                vox.point.y as i32,
+                x as i32,
+                z as i32,
+                y as i32,
                 Voxel::new(color.r, color.g, color.b),
             );
         }
@@ -262,7 +266,7 @@ impl State {
     }
 
     pub fn update(&mut self, delta: f32) {
-        const SPEED: f32 = 7.5;
+        const SPEED: f32 = 1.;
 
         self.velocity.x = 0.;
         self.velocity.y = 0.;

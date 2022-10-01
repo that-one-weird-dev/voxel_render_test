@@ -32,7 +32,7 @@ fn vs_main(
 
 @group(0)
 @binding(0)
-var<storage, read> octree: array<OctreeNode, 26208>;
+var<storage, read> octree: array<OctreeNode, 52416>;
 
 @group(0)
 @binding(1)
@@ -40,13 +40,13 @@ var<uniform> camera: Camera;
 
 let max_steps = 100;
 let max_distance = 30.;
-let octree_depth = 8;
+let octree_depth = 12;
+let stack_depth = 13;
 let ray_length = 100.;
 let background_color = vec4<f32>(.2, .2, .2, 1.);
 let frac_1_255 = 0.003921569; // Approximation of 1. / 255.
 
 fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
-
     var current_node = octree[0];
 
     var size = 32.;
@@ -58,7 +58,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var current_aabb: vec3<f32>;
 
     var stack_index = 0u;
-    var aabb_stack: array<vec3<f32>, octree_depth>;
+    var aabb_stack: array<vec3<f32>, stack_depth>;
     aabb_stack[stack_index] = current_aabb;
 
     var tmin: vec3<f32>;
@@ -88,7 +88,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
             break;
         }
 
-        t0 = origin + (inside_mask * dir * (tnear + 0.000001));
+        t0 = origin + (inside_mask * dir * tnear);
         t1 = origin + dir * tfar;
 
         t1offset = abs(t1 - (current_aabb + (size * .5)));
@@ -100,12 +100,12 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
         if (current_node.children == 0u) {
             loop {
-                current_node = octree[current_node.parent - 1u];
-
-                // This means the ray is outside of the max boudning box
+                // This means the ray is outside of the max bounding box
                 if (stack_index == 0u) {
                     return background_color;
                 }
+
+                current_node = octree[current_node.parent - 1u];
 
                 stack_index -= 1u;
                 current_aabb = aabb_stack[stack_index];
@@ -131,8 +131,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
                   | (u32(t0.y > (current_aabb.y + size)) * 2u)
                   | (u32(t0.z > (current_aabb.z + size)) * 1u);
 
-            let child = current_node.children + index;
-            current_node = octree[child - 1u];
+            current_node = octree[current_node.children + index - 1u];
 
             current_aabb.x += f32((index & 4u) == 4u) * size;
             current_aabb.y += f32((index & 2u) == 2u) * size;
@@ -145,11 +144,6 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         if (current_node.color != 0u) {
             break;
         }
-    }
-
-    // If transparent return
-    if (current_node.color == 0u) {
-        return background_color;
     }
 
     var color: vec4<f32>;
