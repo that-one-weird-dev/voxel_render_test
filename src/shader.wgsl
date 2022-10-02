@@ -40,16 +40,15 @@ var<uniform> camera: Camera;
 
 let max_steps = 100;
 let max_distance = 30.;
-let octree_depth = 12;
-let stack_depth = 13;
-let ray_length = 100.;
+let octree_depth = 16;
+let ray_length = 1000.;
 let background_color = vec4<f32>(.2, .2, .2, 1.);
 let frac_1_255 = 0.003921569; // Approximation of 1. / 255.
 
 fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var current_node = octree[0];
 
-    var size = 32.;
+    var size = 1024.;
 
     let inv_dir = 1. / dir;
 
@@ -58,7 +57,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var current_aabb: vec3<f32>;
 
     var stack_index = 0u;
-    var aabb_stack: array<vec3<f32>, stack_depth>;
+    var aabb_stack: array<vec3<f32>, octree_depth>;
     aabb_stack[stack_index] = current_aabb;
 
     var tmin: vec3<f32>;
@@ -67,7 +66,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
     var t0: vec3<f32>;
     var t1: vec3<f32>;
 
-    var t1offset: vec3<f32>;
+    var toffset: vec3<f32>;
     var biggest: f32;
 
     var tnear: f32;
@@ -91,12 +90,12 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         t0 = origin + (inside_mask * dir * tnear);
         t1 = origin + dir * tfar;
 
-        t1offset = abs(t1 - (current_aabb + (size * .5)));
-        biggest = max(max(t1offset.x, t1offset.y), t1offset.z);
+        toffset = abs(t1 - (current_aabb + (size * .5)));
+        biggest = max(max(toffset.x, toffset.y), toffset.z);
 
-        t1.x += f32(biggest == t1offset.x) * sign(dir.x) * 0.001;
-        t1.y += f32(biggest == t1offset.y) * sign(dir.y) * 0.001;
-        t1.z += f32(biggest == t1offset.z) * sign(dir.z) * 0.001;
+        t1.x += f32(biggest == toffset.x) * sign(dir.x) * 0.001;
+        t1.y += f32(biggest == toffset.y) * sign(dir.y) * 0.001;
+        t1.z += f32(biggest == toffset.z) * sign(dir.z) * 0.001;
 
         if (current_node.children == 0u) {
             loop {
@@ -146,13 +145,23 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         }
     }
 
+    if (i == max_steps - 1) {
+        return vec4<f32>(1., 0., 0., 1.);
+    }
+
+    let val = f32(i) / f32(max_steps);
+
+    if (true) {
+        return vec4<f32>(val, val, val, 1.);
+    }
+
     var color: vec4<f32>;
 
     // Otherwise convert the color
     color = vec4<f32>(
-        f32(current_node.color >> 24u) * frac_1_255 + f32(biggest == t1offset.x && dir.x < 0.) * .1,
-        f32((current_node.color >> 16u) & 255u) * frac_1_255 + f32(biggest == t1offset.y && dir.y < 0.) * .1,
-        f32((current_node.color >> 8u) & 255u) * frac_1_255 + f32(biggest == t1offset.z && dir.z < 0.) * .1,
+        f32(current_node.color >> 24u) * frac_1_255 + f32(biggest == toffset.x && dir.x < 0.) * .1,
+        f32((current_node.color >> 16u) & 255u) * frac_1_255 + f32(biggest == toffset.y && dir.y < 0.) * .1,
+        f32((current_node.color >> 8u) & 255u) * frac_1_255 + f32(biggest == toffset.z && dir.z < 0.) * .1,
         1.,
     );
 
@@ -161,9 +170,9 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio);
+    let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio) * 2.;
     
-    let ro = vec3<f32>(16.0001, 16.0001, 16.0001) + camera.position;
+    let ro = vec3<f32>(512.0001, 512.0001, 512.0001) + camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));
 
     let rotx = -camera.rotation.x;

@@ -29,23 +29,26 @@ impl State {
         let size = window.inner_size();
 
         // ---------------- Octree -------------
-        let mut octree = Octree::new(12);
+        let mut octree = Octree::new(16);
 
         // Loading the model
-        let vox_data = vox_format::from_slice(include_bytes!("assets/monu1.vox")).unwrap();
-        for vox in vox_data.models[0].voxels.iter() {
-            let color = vox_data.palette.colors[vox.color_index.0 as usize];
+        let vox_data = vox_format::from_slice(include_bytes!("assets/#treehouse.vox")).unwrap();
+        for model in vox_data.models {
+            println!("Loading model of size: {:?}", model.size);
+            for vox in model.voxels.iter() {
+                let color = vox_data.palette.colors[vox.color_index.0 as usize];
 
-            let x = vox.point.x;
-            let y = vox.point.y;
-            let z = vox.point.z;
+                let x = vox.point.x;
+                let y = vox.point.y;
+                let z = vox.point.z;
 
-            octree.set(
-                x as i32,
-                z as i32,
-                y as i32,
-                Voxel::new(color.r, color.g, color.b),
-            );
+                octree.set(
+                    x as i32,
+                    z as i32,
+                    y as i32,
+                    Voxel::new(color.r, color.g, color.b),
+                );
+            }
         }
 
         // The instance is a handle to our GPU
