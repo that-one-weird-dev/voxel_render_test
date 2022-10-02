@@ -145,16 +145,6 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         }
     }
 
-    if (i == max_steps - 1) {
-        return vec4<f32>(1., 0., 0., 1.);
-    }
-
-    let val = f32(i) / f32(max_steps);
-
-    if (true) {
-        return vec4<f32>(val, val, val, 1.);
-    }
-
     var color: vec4<f32>;
 
     // Otherwise convert the color
