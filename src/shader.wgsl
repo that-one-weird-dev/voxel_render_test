@@ -20,6 +20,13 @@ struct Camera {
     aspect_ratio: f32,
 }
 
+struct RayHit {
+    hit: bool,
+    color: vec4<f32>,
+    position: vec3<f32>,
+    node: u32,
+}
+
 @vertex
 fn vs_main(
     model: VertexInput,
@@ -45,7 +52,7 @@ let ray_length = 1000.;
 let background_color = vec4<f32>(.2, .2, .2, 1.);
 let frac_1_255 = 0.003921569; // Approximation of 1. / 255.
 
-fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
+fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> RayHit {
     var current_node = octree[0];
 
     var size = 1024.;
@@ -54,7 +61,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
     var index = 0u;
 
-    var current_aabb: vec3<f32>;
+    var current_aabb = vec3<f32>(-512., -512., -512.);
 
     var stack_index = 0u;
     var aabb_stack: array<vec3<f32>, octree_depth>;
@@ -71,6 +78,8 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
 
     var tnear: f32;
     var tfar: f32;
+
+    var result: RayHit;
 
     let inside_mask = 1. - f32(all(origin > current_aabb) && all(origin < (current_aabb + size)));
     
@@ -101,7 +110,7 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
             loop {
                 // This means the ray is outside of the max bounding box
                 if (stack_index == 0u) {
-                    return background_color;
+                    return result;
                 }
 
                 current_node = octree[current_node.parent - 1u];
@@ -130,7 +139,8 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
                   | (u32(t0.y > (current_aabb.y + size)) * 2u)
                   | (u32(t0.z > (current_aabb.z + size)) * 1u);
 
-            current_node = octree[current_node.children + index - 1u];
+            result.node = current_node.children + index - 1u;
+            current_node = octree[result.node];
 
             current_aabb.x += f32((index & 4u) == 4u) * size;
             current_aabb.y += f32((index & 2u) == 2u) * size;
@@ -145,24 +155,28 @@ fn cast_ray(origin: vec3<f32>, dir: vec3<f32>) -> vec4<f32> {
         }
     }
 
-    var color: vec4<f32>;
+    if (i == max_steps) {
+        return result;
+    }
 
-    // Otherwise convert the color
-    color = vec4<f32>(
+    result.position = t0 - (sign(dir) * 0.002);
+    result.hit = true;
+
+    result.color = vec4<f32>(
         f32(current_node.color >> 24u) * frac_1_255 + f32(biggest == toffset.x && dir.x < 0.) * .1,
         f32((current_node.color >> 16u) & 255u) * frac_1_255 + f32(biggest == toffset.y && dir.y < 0.) * .1,
         f32((current_node.color >> 8u) & 255u) * frac_1_255 + f32(biggest == toffset.z && dir.z < 0.) * .1,
         1.,
     );
 
-    return color;
+    return result;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = ((in.tex_coords.xy * 2.) - 1.) * vec2<f32>(1., camera.aspect_ratio) * 2.;
     
-    let ro = vec3<f32>(512.0001, 512.0001, 512.0001) + camera.position;
+    let ro = camera.position;
     var rd = normalize(vec3<f32>(uv,1.0));
 
     let rotx = -camera.rotation.x;
@@ -177,7 +191,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     newrd = rd.xz * xmat;
     rd = vec3<f32>(newrd.x, rd.y, newrd.y);
 
-    let color = cast_ray(ro, rd * ray_length);
+    let result = cast_ray(ro, rd * ray_length);
 
-    return color;
+    if (!result.hit) {
+        return background_color;
+    }
+
+    return result.color;
 }
