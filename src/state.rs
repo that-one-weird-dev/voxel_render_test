@@ -22,6 +22,7 @@ pub struct State {
     camera: Camera,
     keys_down: HashSet<VirtualKeyCode>,
     velocity: Vec3,
+    cube_pos: f32,
 }
 
 impl State {
@@ -50,6 +51,8 @@ impl State {
                 );
             }
         }
+
+        // octree.set(0, 0, 0, Voxel::clear());
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -228,6 +231,7 @@ impl State {
             camera,
             keys_down: HashSet::new(),
             velocity: Vec3::new(0., 0., 0.),
+            cube_pos: 0.,
         }
     }
 
@@ -311,6 +315,28 @@ impl State {
         self.camera.position.x += self.velocity.x * delta;
         self.camera.position.y += self.velocity.y * delta;
         self.camera.position.z += self.velocity.z * delta;
+
+        // Flying cube
+
+        self.cube_pos += delta;
+
+        let x = self.cube_pos as i32 + 5;
+        let y = 10;
+        let z = 5;
+
+        for z in z..z+2 {
+            for y in y..y+2 {
+                self.octree.set(x - 1, y, z, Voxel::clear());
+            }
+        }
+
+        for z in z..z+2 {
+            for y in y..y+2 {
+                for x in x..x+2 {
+                    self.octree.set(x, y, z, Voxel::new(156, 200, 120));
+                }
+            }
+        }
     }
 
     pub fn render(&mut self) -> Result<(), SurfaceError> {

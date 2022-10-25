@@ -15,4 +15,8 @@ impl Voxel {
             color: a as u32 + ((b as u32) << 8) + ((g as u32) << 16) + ((r as u32) << 24),
         }
     }
+
+    pub fn clear() -> Self {
+        Self { color: 0 ,}
+    }
 }
