@@ -3,12 +3,14 @@ mod vertex;
 mod shapes;
 mod voxel;
 mod types;
+mod utils;
 
 use std::time::Instant;
 
 use state::State;
+use utils::set_cursor_locked;
 use wgpu::SurfaceError;
-use winit::{event_loop::{EventLoop, ControlFlow}, window::{WindowBuilder, CursorGrabMode}, event::{Event, WindowEvent}};
+use winit::{event_loop::{EventLoop, ControlFlow}, window::{WindowBuilder, CursorGrabMode, Window}, event::{Event, WindowEvent}};
 
 fn main() {
     pollster::block_on(run());
@@ -24,13 +26,7 @@ async fn run() {
 
     let mut last_render_time = Instant::now();
 
-    window.set_cursor_visible(false);
-    match window.set_cursor_grab(CursorGrabMode::Confined) {
-        Err(_) => {
-            window.set_cursor_grab(CursorGrabMode::Locked).ok();
-        },
-        Ok(_) => {},
-    }
+    set_cursor_locked(&window, true);
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -51,7 +47,7 @@ async fn run() {
                 let dt = now - last_render_time;
                 last_render_time = now;
 
-                state.update(dt.as_secs_f32());
+                state.update(dt.as_secs_f32(), &window);
 
                 match state.render() {
                     Ok(_) => {},

@@ -4,7 +4,7 @@ use ocpalm::Octree;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, SurfaceError, TextureViewDescriptor, CommandEncoderDescriptor, include_wgsl, BindingResource, TextureUsages, RenderPassDescriptor, RenderPassColorAttachment, Operations, Color, RenderPipeline, util::{DeviceExt, BufferInitDescriptor}, Buffer, BufferUsages, IndexFormat, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroup, BufferBinding, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, PresentMode, Backends};
 use winit::{dpi::PhysicalSize, event::{WindowEvent, VirtualKeyCode, ElementState, Event, DeviceEvent}, window::Window};
 
-use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}};
+use crate::{vertex::Vertex, shapes, voxel::Voxel, types::{Vec3, Camera, Vec2}, set_cursor_locked};
 
 pub struct State {
     surface: Surface,
@@ -21,8 +21,10 @@ pub struct State {
     camera_buffer: Buffer,
     camera: Camera,
     keys_down: HashSet<VirtualKeyCode>,
+    keys_pressed: HashSet<VirtualKeyCode>,
     velocity: Vec3,
     cube_pos: f32,
+    is_cursor_locked: bool,
 }
 
 impl State {
@@ -230,8 +232,10 @@ impl State {
             camera_buffer,
             camera,
             keys_down: HashSet::new(),
+            keys_pressed: HashSet::new(),
             velocity: Vec3::new(0., 0., 0.),
             cube_pos: 0.,
+            is_cursor_locked: true,
         }
     }
 
@@ -259,6 +263,7 @@ impl State {
                         match input.state {
                             ElementState::Pressed => {
                                 self.keys_down.insert(keycode);
+                                self.keys_pressed.insert(keycode);
                             },
                             ElementState::Released => {
                                 self.keys_down.remove(&keycode);
@@ -272,7 +277,7 @@ impl State {
         }
     }
 
-    pub fn update(&mut self, delta: f32) {
+    pub fn update(&mut self, delta: f32, window: &Window) {
         const SPEED: f32 = 1.;
 
         self.velocity.x = 0.;
@@ -311,6 +316,13 @@ impl State {
         if self.keys_down.contains(&VirtualKeyCode::LShift) {
             self.velocity.y += -SPEED;
         }
+
+        if self.keys_pressed.contains(&VirtualKeyCode::Escape) {
+            self.is_cursor_locked = !self.is_cursor_locked;
+            set_cursor_locked(window, self.is_cursor_locked);
+        }
+
+        self.keys_pressed.clear();
 
         self.camera.position.x += self.velocity.x * delta;
         self.camera.position.y += self.velocity.y * delta;
@@ -397,7 +409,7 @@ impl State {
 
 fn get_backend() -> Backends {
     if cfg!(target_os = "linux") {
-        Backends::GL
+        Backends::VULKAN
     } else {
         Backends::all()
     }
